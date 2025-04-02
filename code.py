@@ -21,15 +21,21 @@ y = 400
 scale = 3
 speed = 6
 base_player_ammo = 20
+base_player_grenade = 5
 
 # Các biến điều khiển di chuyển của nhân vật
 moving_left = False
 moving_right = False
 shoot = False
+grenade = False
+grenade_thrown = False
 
 # Load các ảnh
 # Load ảnh của viên đạn (chuyển sang alpha để có nền trong suốt)
 bullet_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/p_bullet.png').convert_alpha()
+# Load ảnh của grenade
+grenade_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/grenade.png').convert_alpha()
+
 
 # Màu
 BG = (144, 201, 120)
@@ -41,7 +47,7 @@ def draw_bg():
 
 # Lớp unit: đại diện cho các nhân vật (player và enemy)
 class unit(pygame.sprite.Sprite):
-    def __init__(self, char_type, x, y, scale, speed, ammo):
+    def __init__(self, char_type, x, y, scale, speed, ammo, grenade):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
         self.char_type = char_type
@@ -49,6 +55,7 @@ class unit(pygame.sprite.Sprite):
         self.ammo = ammo
         self.start_ammo = ammo
         self.shoot_cooldown = 0
+        self.grenade = grenade
         self.health = 100
         self.max_health = self.health
         self.direction = 1  # Ban đầu hướng phải (1) hoặc trái (-1)
@@ -155,10 +162,11 @@ class unit(pygame.sprite.Sprite):
     def draw(self):
         screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
 
+# Tạo class Bullet
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
-        self.speed = 8
+        self.speed = 9
         self.image = bullet_img
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
@@ -180,12 +188,44 @@ class Bullet(pygame.sprite.Sprite):
                 enemy.health -= 50
                 self.kill()
 
+# Tạo class grenade
+class Grenade(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction):
+        pygame.sprite.Sprite.__init__(self)
+        self.timer = 100
+        self.vel_y = -11
+        self.speed = 7
+        self.image = grenade_img
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.direction = direction
+
+    def update(self):
+        self.vel_y += GRAVITY
+        dx = self.speed * self.direction
+        dy = self.vel_y
+
+        # Kiểm tra collision với floor
+        if self.rect.bottom + dy > 450:
+            dy = 450 - self.rect.bottom
+            self.speed = 0
+
+        # Kiểm tra collision với walls
+        if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH:
+            self.direction *= -1
+            dx = self.speed * self.direction
+
+        # Cập nhật vị trí grenade
+        self.rect.x += dx
+        self.rect.y += dy
+
 # Tạo sprite group
 bullet_group = pygame.sprite.Group()
+grenade_group = pygame.sprite.Group()
 
 # Khởi tạo nhân vật và enemy
-player = unit('player', x, y, scale, speed, base_player_ammo)
-enemy = unit('enemy', 1200, 400, scale, 0.8 * speed, base_player_ammo)
+player = unit('player', x, y, scale, speed, base_player_ammo, base_player_grenade)
+enemy = unit('enemy', 1200, 400, scale, 0.8 * speed, base_player_ammo, 0)
 
 run = True
 while run:
@@ -201,6 +241,8 @@ while run:
     # Cập nhật và vẽ groups
     bullet_group.update()
     bullet_group.draw(screen)
+    grenade_group.update()
+    grenade_group.draw(screen)
 
     # Cập nhật trạng thái chạy/idle của player dựa vào phím di chuyển
     if player.alive:
@@ -208,6 +250,14 @@ while run:
         if shoot:
             player.update_action(4)
             player.shoot()
+        # Ném lựu đạn
+        elif grenade and grenade_thrown == False and player.grenade > 0:
+            grenade = Grenade(player.rect.centerx + (0.5* player.rect.size[0] * player.direction),\
+                               player.rect.top, player.direction)
+            grenade_group.add(grenade)
+            # Giảm số grenade lại
+            player.grenade -= 1
+            grenade_thrown = True
         elif player.in_air:
             player.update_action(2)  # nhảy
         elif moving_left or moving_right:
@@ -230,6 +280,8 @@ while run:
                 moving_right = True
             if event.key == pygame.K_SPACE:
                 shoot = True
+            if event.key == pygame.K_q:
+                grenade = True
             if event.key == pygame.K_w and player.alive:
                 player.jump = True
             if event.key == pygame.K_ESCAPE:
@@ -243,6 +295,9 @@ while run:
                 moving_right = False
             if event.key == pygame.K_SPACE:
                 shoot = False
+            if event.key == pygame.K_q:
+                grenade = False
+                grenade_thrown = False
 
     pygame.display.update()
 
