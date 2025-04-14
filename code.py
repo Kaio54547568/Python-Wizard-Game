@@ -1,10 +1,17 @@
 import pygame
+from pygame import mixer
 import os
 import random
 import csv
 import button
 
+mixer.init()
 pygame.init()
+
+# TODO: Thêm coin
+# TODO: Thêm kẻ địch mới
+# TODO: Thay đổi background theo level
+# TODO: Thay đổi nhạc theo level
 
 # Kích thước màn hình
 SCREEN_WIDTH = 1500
@@ -22,14 +29,16 @@ ROWS = 16
 COLS = 150
 TILE_SIZE = (SCREEN_HEIGHT ) // ROWS
 TILE_TYPES = 23
+MAX_LEVELS = 5
 screen_scroll = 0
 bg_scroll = 0
 level = 1
 start_game = False
+start_intro = False
 
 # Biến của nhân vật
-scale = 2.5
-speed = 6
+scale = 2
+speed = 5
 base_player_ammo = 20
 base_player_grenade = 5
 max_ammo = 60
@@ -40,6 +49,23 @@ moving_right = False
 shoot = False
 grenade = False
 grenade_thrown = False
+
+# Load âm thanh
+# Các music:
+pygame.mixer.music.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/menu.mp3')
+pygame.mixer.music.set_volume(0.4)
+pygame.mixer.music.play(-1, 0.0, 5000)
+# Các sound fx
+jump_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/jump.wav')
+jump_fx.set_volume(0.5)
+p_attack_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/p_attack.wav')
+p_attack_fx.set_volume(0.5)
+p_hit_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/p_hit.wav')
+p_hit_fx.set_volume(0.5)
+spell_cast_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/spell_cast.wav')
+spell_cast_fx.set_volume(0.5)
+spell_explode_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/spell_explode.mp3')
+spell_explode_fx.set_volume(0.5)
 
 # Load các ảnh
 # Background
@@ -59,6 +85,9 @@ pine6_img = pygame.transform.scale(pine6_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
 # ảnh buttons
 start_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/menu_button/newgame.png').convert_alpha()
 exit_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/menu_button/exit.png').convert_alpha()
+restart_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/menu_button/restart.png').convert_alpha()
+
+
 # Lưu trữ các tiles vào 1 list
 img_list = []
 for x in range(TILE_TYPES):
@@ -67,6 +96,7 @@ for x in range(TILE_TYPES):
     img_list.append(img)
 # Load ảnh của viên đạn (chuyển sang alpha để có nền trong suốt)
 bullet_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/p_bullet.png').convert_alpha()
+
 # Load ảnh của grenade
 grenade_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/grenade.png').convert_alpha()
 # Load ảnh của pick up
@@ -89,14 +119,17 @@ GREEN = (0, 255, 0)
 BLACK = (0, 0, 0)
 BLUE = (0, 0, 255)
 CYAN = (224, 255, 255)
+PINK = (235, 65, 54)
 
 # Định nghĩa font
 font = pygame.font.SysFont('Futura', 30)
 
+# Hàm để vẽ text
 def draw_text(text, font, text_col, x, y):
     img = font.render(text, True, text_col)
     screen.blit(img, (x, y))
 
+# Hàm để vẽ background
 def draw_bg():
     screen.fill(GREEN)
     width = pine1_img.get_width()
@@ -108,7 +141,26 @@ def draw_bg():
         screen.blit(pine5_img, ((x * width) - bg_scroll * 0.7, 0))
         screen.blit(pine6_img, ((x * width) - bg_scroll * 0.8, 0))
 
-# Lớp unit: đại diện cho các nhân vật (player và enemy)
+# Hàm để reset level
+def reset_level():
+    enemy_group.empty()
+    bullet_group.empty()
+    grenade_group.empty()
+    explosion_group.empty()
+    item_box_group.empty()
+    decoration_group.empty()
+    water_group.empty()
+    exit_group.empty()
+
+    # Tạo 1 list các tiles empty
+    data = []
+    for row in range(ROWS):
+        r = [-1] * COLS     # Đây là một list theo chiều ngang chứa toàn giá trị -1
+        data.append(r)
+
+    return data
+
+# Lớp unit: đại diện cho các nhân vật người chơi
 class unit(pygame.sprite.Sprite):
     def __init__(self, char_type, x, y, scale, speed, ammo, grenade):
         pygame.sprite.Sprite.__init__(self)
@@ -132,11 +184,6 @@ class unit(pygame.sprite.Sprite):
         self.action = 0  # 0: idle, 1: chạy
         self.update_time = pygame.time.get_ticks()
 
-        # Chỉ đối với ai
-        self.move_counter = 0
-        self.vision = pygame.Rect(0, 0, 200, 20)
-        self.idling = False
-        self.idling_counter = 0
         
         # Tạo list animation cho các trạng thái của nhân vật
         animation_types = ['idle', 'run', 'jump', 'death', 'shooting']
@@ -213,6 +260,19 @@ class unit(pygame.sprite.Sprite):
                     self.in_air = False
                     dy = tile[1].top - self.rect.bottom
 
+        # Nếu va chạm với nước
+        if pygame.sprite.spritecollide(self, water_group, False):
+            self.health = 0
+
+        # Kiểm tra xem đã win hay chưa
+        level_complete = False
+        if pygame.sprite.spritecollide(self, exit_group, False):
+            level_complete = True
+
+        # Kiểm tra xem người chơi đã rơi ra khỏi map
+        if self.rect.bottom > SCREEN_HEIGHT:
+            self.health = 0
+
         # Kiểm tra xem nếu nhân vật vượt khỏi viền màn hình
         if self.char_type == 'player':
             if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH:
@@ -229,7 +289,7 @@ class unit(pygame.sprite.Sprite):
                 self.rect.x -= dx
                 screen_scroll = -dx
 
-        return screen_scroll
+        return screen_scroll, level_complete
     
 
     def shoot(self):
@@ -239,6 +299,7 @@ class unit(pygame.sprite.Sprite):
             bullet_group.add(bullet)
             # Giảm số lượng đạn
             self.ammo -= 1
+            p_attack_fx.play()
 
     def ai(self):
         if self.alive and player.alive:
@@ -303,6 +364,308 @@ class unit(pygame.sprite.Sprite):
     def draw(self):
         screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
 
+# Tạo class kẻ địch - Trunk:
+class EnemyTrunk(pygame.sprite.Sprite):
+    def __init__(self, char_type, x, y, scale, speed):
+        pygame.sprite.Sprite.__init__(self)
+        self.alive = True
+        self.char_type = char_type
+        self.speed = speed
+        self.shoot_cooldown = 0
+        self.health = 100
+        self.direction = 1  # Ban đầu hướng phải (1) hoặc trái (-1)
+        self.vel_y = 0
+        self.flip = False
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0  # 0: idle, 1: chạy
+        self.update_time = pygame.time.get_ticks()
+        self.move_counter = 0
+        self.vision = pygame.Rect(0, 0, 5*TILE_SIZE, 20)
+        self.idling = False
+        self.idling_counter = 0
+        
+        # Tạo list animation cho các trạng thái của nhân vật
+        animation_types = ['idle', 'run', 'jump', 'death', 'shooting']
+        for animation in animation_types:
+            # Reset lại list tạm thời của các ảnh
+            temp_list = []
+            # Đếm số lượng khung hình trong thư mục tương ứng
+            num_of_frames = len(os.listdir(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/trunk/{animation}'))
+            for i in range(num_of_frames):
+                img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/trunk/{animation}/{i}.png').convert_alpha()
+                img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
+                temp_list.append(img)
+            self.animation_list.append(temp_list)
+
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
+
+    def update(self):
+        self.update_animation()
+        self.check__alive()
+        # update cooldown
+        if self.shoot_cooldown > 0:
+            self.shoot_cooldown -= 1
+
+
+    def move(self, moving_left, moving_right):
+        # Reset lại các biến di chuyển
+        dx = 0
+        dy = 0
+        
+        if moving_right:
+            dx = self.speed
+            self.flip = True
+            self.direction = 1
+        if moving_left:
+            dx = -self.speed
+            self.flip = False
+            self.direction = -1
+
+        # Áp dụng trọng lực
+        self.vel_y += GRAVITY
+        if self.vel_y > 10:
+            self.vel_y = 10
+        dy += self.vel_y
+
+
+        # Kiểm tra collision
+        for tile in world.obstacle_list:
+            # Kiểm tra collision ở tọa độ x
+            if tile[1].colliderect(self.rect.x + dx, self.rect.y + 2, self.width, self.height - 4):
+                dx = 0
+                self.direction *= -1
+                self.move_counter = 0
+            # Kiểm tra collision ở tọa độ y
+            if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
+                # Kiểm tra xem tọa độ có ở dưới vật (chẳng hạn khi nhảy đập đầu vào tường), chẳng hạn nhảy do khi nhảy thì y giảm
+                if self.vel_y < 0:
+                    self.vel_y = 0
+                    dy = tile[1].bottom - self.rect.top
+                # Kiểm tra nếu ở ben trên mặt (chẳng hạn rơi xuống đập vào khối), chẳng hạn khi đang rơi
+                elif self.vel_y >= 0:
+                    self.vel_y = 0
+                    self.in_air = False
+                    dy = tile[1].top - self.rect.bottom
+
+        # Nếu va chạm với nước
+        if pygame.sprite.spritecollide(self, water_group, False):
+            self.health = 0
+
+        # Kiểm tra xem người chơi đã rơi ra khỏi map
+        if self.rect.bottom > SCREEN_HEIGHT:
+            self.health = 0
+
+        # Kiểm tra xem nếu nhân vật vượt khỏi viền màn hình
+        if self.char_type == 'player':
+            if self.rect.left + dx < 0 or self.rect.right + dx > SCREEN_WIDTH:
+                dx = 0
+
+        # Cập nhật vị trí rectangle
+        self.rect.x += dx
+        self.rect.y += dy
+    
+
+    def shoot(self):
+        if self.shoot_cooldown == 0:
+            self.shoot_cooldown = 45
+            bullet = EnemyBullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction, 'trunk_bullet')
+            bullet_group.add(bullet)
+
+    def ai(self):
+        if self.alive and player.alive:
+            # Cho phép enemy tạm dừng theo trạng thái idle ngẫu nhiên
+            if not self.idling and random.randint(1, 200) == 5:
+                self.update_action(0)  # 0: idle
+                self.idling = True
+                self.idling_counter = 50
+
+            # Nếu player nằm trong vùng phát hiện thì enemy bắn
+            if self.vision.colliderect(player.rect):
+                self.update_action(4)  # 4: shooting
+                self.shoot()
+            else:
+                if not self.idling:
+                    # Xác định hướng di chuyển dựa trên giá trị self.direction
+                    ai_moving_right = True if self.direction == 1 else False
+                    ai_moving_left = not ai_moving_right
+                    
+                    # Lưu lại vị trí x trước khi di chuyển để tính khoảng cách thực tế
+                    old_x = self.rect.x
+                    self.move(ai_moving_left, ai_moving_right)
+                    self.update_action(1)  # 1: chạy
+
+                    # Tính khoảng cách đã di chuyển theo pixel
+                    moved_distance = abs(self.rect.x - old_x)
+                    self.move_counter += moved_distance
+
+                    # Cập nhật lại vùng phát hiện dựa trên vị trí hiện tại
+                    self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
+
+                    # Khi tổng khoảng cách di chuyển đạt đến hoặc vượt quá TILE_SIZE, đổi hướng và reset biến đếm
+                    if self.move_counter >= 2 * TILE_SIZE:
+                        self.direction *= -1
+                        self.move_counter = 0
+                else:
+                    # Giảm thời gian idling nếu enemy đang trong trạng thái dừng
+                    self.idling_counter -= 1
+                    if self.idling_counter <= 0:
+                        self.idling = False
+
+        # Cập nhật scroll cho enemy (để đồng bộ với màn hình)
+        self.rect.x += screen_scroll
+
+
+    def update_animation(self):
+        ANIMATION_COOLDOWN = 80
+        self.image = self.animation_list[self.action][self.frame_index]
+        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
+            self.update_time = pygame.time.get_ticks()
+            self.frame_index += 1
+        if self.frame_index >= len(self.animation_list[self.action]):
+            if self.action == 3:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+
+    def update_action(self, new_action):
+        if new_action != self.action:
+            self.action = new_action
+            self.frame_index = 0
+            self.update_time = pygame.time.get_ticks()
+
+    def check__alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.speed = 0
+            self.alive = False
+            self.update_action(3)
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
+# Tạo class kẻ địch - Peashooter:
+class EnemyPeashooter(pygame.sprite.Sprite):
+    def __init__(self, char_type, x, y, scale, speed):
+        pygame.sprite.Sprite.__init__(self)
+        self.alive = True
+        self.char_type = char_type
+        self.shoot_cooldown = 0
+        self.health = 150
+        self.direction = 1  # Ban đầu hướng phải (1) hoặc trái (-1)
+        self.vel_y = 0
+        self.flip = False
+        self.animation_list = []
+        self.frame_index = 0
+        self.action = 0
+        self.update_time = pygame.time.get_ticks()
+        self.move_counter = 0
+        self.vision = pygame.Rect(0, 0, 200, 20)
+        
+        # Tạo list animation cho các trạng thái của nhân vật
+        animation_types = ['idle', 'run', 'jump', 'death', 'shooting']
+        for animation in animation_types:
+            # Reset lại list tạm thời của các ảnh
+            temp_list = []
+            # Đếm số lượng khung hình trong thư mục tương ứng
+            num_of_frames = len(os.listdir(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/trunk/{animation}'))
+            for i in range(num_of_frames):
+                img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/trunk/{animation}/{i}.png').convert_alpha()
+                img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
+                temp_list.append(img)
+            self.animation_list.append(temp_list)
+
+        self.image = self.animation_list[self.action][self.frame_index]
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
+
+    def update(self):
+        self.update_animation()
+        self.check__alive()
+        # update cooldown
+        if self.shoot_cooldown > 0:
+            self.shoot_cooldown -= 1
+
+
+    def move(self):
+        # Reset lại các biến di chuyển
+        dy = 0
+
+        # Áp dụng trọng lực
+        self.vel_y += GRAVITY
+        if self.vel_y > 10:
+            self.vel_y = 10
+        dy += self.vel_y
+
+
+        # Kiểm tra collision
+        for tile in world.obstacle_list:
+            # Kiểm tra collision ở tọa độ y
+            if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
+                # Kiểm tra xem tọa độ có ở dưới vật (chẳng hạn khi nhảy đập đầu vào tường), chẳng hạn nhảy do khi nhảy thì y giảm
+                if self.vel_y < 0:
+                    self.vel_y = 0
+                    dy = tile[1].bottom - self.rect.top
+                # Kiểm tra nếu ở ben trên mặt (chẳng hạn rơi xuống đập vào khối), chẳng hạn khi đang rơi
+                elif self.vel_y >= 0:
+                    self.vel_y = 0
+                    self.in_air = False
+                    dy = tile[1].top - self.rect.bottom
+
+        # Cập nhật vị trí rectangle
+        self.rect.y += dy
+    
+
+    def shoot(self):
+        if self.shoot_cooldown == 0:
+            self.shoot_cooldown = 45
+            bullet = EnemyBullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction, 'trunk_bullet')
+            bullet_group.add(bullet)
+
+    def ai(self):
+        if self.alive and player.alive:
+            # Kiểm tra xem ai có ở gần người chơi không
+            if self.vision.colliderect(player.rect):
+                self.update_action(4)
+                self.shoot()
+
+            # Scroll
+        self.rect.x += screen_scroll
+
+    def update_animation(self):
+        ANIMATION_COOLDOWN = 80
+        self.image = self.animation_list[self.action][self.frame_index]
+        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
+            self.update_time = pygame.time.get_ticks()
+            self.frame_index += 1
+        if self.frame_index >= len(self.animation_list[self.action]):
+            if self.action == 3:
+                self.frame_index = len(self.animation_list[self.action]) - 1
+            else:
+                self.frame_index = 0
+
+    def update_action(self, new_action):
+        if new_action != self.action:
+            self.action = new_action
+            self.frame_index = 0
+            self.update_time = pygame.time.get_ticks()
+
+    def check__alive(self):
+        if self.health <= 0:
+            self.health = 0
+            self.speed = 0
+            self.alive = False
+            self.update_action(3)
+
+    def draw(self):
+        screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
 # Tạo class thế giới
 class World():
     def __init__(self):
@@ -335,9 +698,9 @@ class World():
                         player = unit('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, base_player_ammo, base_player_grenade)
                         health_bar = HealthBar(100, 10, player.health, player.health)
                         mana_bar = ManaBar(82, 35, player.ammo, player.max_ammo )
-                    # Kẻ địch
+                    # Kẻ địch Trunk
                     elif tile == 8:
-                        enemy = unit('enemy', x * TILE_SIZE, y * TILE_SIZE, scale, 0.5 * speed, base_player_ammo, 0)
+                        enemy = EnemyTrunk('enemy', x * TILE_SIZE, y * TILE_SIZE, 2, 0.5 * speed)
                         enemy_group.add(enemy)
                     # Tạo hộp đạn
                     elif tile == 4:
@@ -354,7 +717,7 @@ class World():
                     # Lối thoát
                     elif tile == 22:
                         exit = Exit(img, x * TILE_SIZE, y * TILE_SIZE)
-                        exit.add(exit)
+                        exit_group.add(exit)
         return player, health_bar, mana_bar
     # Hiển thị các tiles
     def draw (self):
@@ -409,7 +772,7 @@ class ItemBox(pygame.sprite.Sprite):
         if pygame.sprite.collide_rect(self, player):
             # Kiểm tra xem loại pick up nào
             if self.item_type == 'Health':
-                player.health += 25
+                player.health += 40
                 if (player.health > player.max_health):
                     player.health = player.max_health
             elif self.item_type == 'Ammo':
@@ -457,11 +820,11 @@ class ManaBar():
         pygame.draw.rect(screen, BLUE, (self.x, self.y, 300 * ratio, 20))
 
 
-# Tạo class Bullet
+# Tạo class Bullet của người chơi
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
-        self.speed = 7
+        self.speed = 10
         self.image = bullet_img
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
@@ -478,10 +841,41 @@ class Bullet(pygame.sprite.Sprite):
             if tile[1].colliderect(self.rect):
                 self.kill()
 
+        for enemy in enemy_group:
+            if pygame.sprite.spritecollide(enemy, bullet_group, False):
+                if enemy.alive:
+                    enemy.health -= 25
+                    self.kill()
+
+# Tạo class Bullet của kẻ địch
+class EnemyBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction, bullet_type):
+        pygame.sprite.Sprite.__init__(self)
+        self.speed = 5
+        self.direction = direction
+        self.bullet_type = bullet_type
+        bullet_img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/{bullet_type}.png').convert_alpha()
+        bullet_img = pygame.transform.scale(bullet_img, (32, 32))
+        self.image = bullet_img
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+    def update(self):
+        # Move bullet
+        self.rect.x += (self.direction * self.speed) + screen_scroll
+        # Kiểm tra xem bullet đã rời khỏi màn hình hay chưa
+        if self.rect.right < 0 or self.rect.left > SCREEN_WIDTH:
+            self.kill()
+        
+        # Kiểm tra collision với terrain
+        for tile in world.obstacle_list:
+            if tile[1].colliderect(self.rect):
+                self.kill()
+
         # Kiểm tra collision với nhân vật
         if pygame.sprite.spritecollide(player, bullet_group, False):
             if player.alive:
-                player.health -= 10
+                player.health -= 20
+                p_hit_fx.play()
             self.kill()
         for enemy in enemy_group:
             if pygame.sprite.spritecollide(enemy, bullet_group, False):
@@ -493,7 +887,6 @@ class Bullet(pygame.sprite.Sprite):
 class Grenade(pygame.sprite.Sprite):
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
-        self.timer = 100
         self.vel_y = -11
         self.speed = 7
         self.image = grenade_img
@@ -520,8 +913,18 @@ class Grenade(pygame.sprite.Sprite):
         for tile in world.obstacle_list:
             # Kiểm tra collision nếu đập phải tiles
             if tile[1].colliderect(self.rect.x + dx, self.rect.y - 5, self.width, self.height + 5):
-                self.direction *= -1
-                dx = self.speed * self.direction
+                self.kill()
+                spell_explode_fx.play()
+                explosion = Explosion(self.rect.x, self.rect.y, 3)
+                explosion_group.add(explosion)
+                # Gây sát thương lên bất cứ ai ở trong vùng này
+                if (abs(self.rect.centerx - player.rect.centerx)) < TILE_SIZE * 2 and \
+                    (abs(self.rect.centery - player.rect.centery)) < TILE_SIZE * 2:
+                    player.health -= 50
+                for enemy in enemy_group:
+                    if (abs(self.rect.centerx - enemy.rect.centerx)) < TILE_SIZE * 2 and \
+                        (abs(self.rect.centery - enemy.rect.centery)) < TILE_SIZE * 2:
+                        enemy.health -= 50
         # Kiểm tra collision ở tọa độ y
             if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
                 self.speed = 0
@@ -540,21 +943,6 @@ class Grenade(pygame.sprite.Sprite):
         # Cập nhật vị trí grenade
         self.rect.x += dx + screen_scroll
         self.rect.y += dy
-
-        # Timer đếm thời gian nổ
-        self.timer -= 1
-        if self.timer <= 0:
-            self.kill()
-            explosion = Explosion(self.rect.x, self.rect.y, 3)
-            explosion_group.add(explosion)
-            # Gây sát thương lên bất cứ ai ở trong vùng này
-            if (abs(self.rect.centerx - player.rect.centerx)) < TILE_SIZE * 2 and \
-                (abs(self.rect.centery - player.rect.centery)) < TILE_SIZE * 2:
-                player.health -= 50
-            for enemy in enemy_group:
-                if (abs(self.rect.centerx - enemy.rect.centerx)) < TILE_SIZE * 2 and \
-                    (abs(self.rect.centery - enemy.rect.centery)) < TILE_SIZE * 2:
-                    enemy.health -= 50
 
 # Tạo class vụ nổ
 class Explosion(pygame.sprite.Sprite):
@@ -586,9 +974,39 @@ class Explosion(pygame.sprite.Sprite):
             else: 
                 self.image = self.images[self.frame_index]
 
+# Tạo class cho màn hình sinh động hơn
+class ScreenFade():
+    def __init__(self, direction, colour, speed):
+        self.direction = direction
+        self.colour = colour
+        self.speed = speed
+        self.fade_counter = 0
+
+    def fade(self):
+        fade_complete = False
+        self.fade_counter += self.speed
+        # Fade toàn màn hình
+        if self.direction == 1: 
+            pygame.draw.rect(screen, self.colour, (0 - self.fade_counter, 0, SCREEN_WIDTH // 2, SCREEN_HEIGHT))
+            pygame.draw.rect(screen, self.colour, (SCREEN_WIDTH // 2 + self.fade_counter, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+            pygame.draw.rect(screen, self.colour, (0, 0- self.fade_counter, SCREEN_WIDTH, SCREEN_HEIGHT // 2))
+            pygame.draw.rect(screen, self.colour, (0, SCREEN_HEIGHT // 2 + self.fade_counter, SCREEN_WIDTH, SCREEN_HEIGHT // 2))
+        # Màn hình sẽ chạy từ trên xuống theo chiều ngang
+        if self.direction == 2:
+            pygame.draw.rect(screen, self.colour, (0, 0, SCREEN_WIDTH, 0 + self.fade_counter))
+        if self.fade_counter >= 2/3 * SCREEN_WIDTH:
+            fade_complete = True
+
+        return fade_complete
+
+# Tạo instance cho screenfade
+intro_fade = ScreenFade(1, BLACK, 7)
+death_fade = ScreenFade(2, PINK, 5)
+
 # Tạo các nút
-start_button = button.Button(SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150, start_img, 1)
-exit_button = button.Button(SCREEN_WIDTH // 2 - 110, SCREEN_HEIGHT // 2 + 50, exit_img, 1)
+start_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 150, start_img, 5)
+exit_button = button.Button(SCREEN_WIDTH // 2 - 65, SCREEN_HEIGHT // 2 + 50, exit_img, 5)
+restart_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 100, restart_img, 5)
 
 # Tạo sprite group
 enemy_group = pygame.sprite.Group()
@@ -610,7 +1028,6 @@ for row in range(ROWS):
     world_data.append(r)
 
 # Load dữ liệu của level và tạo thế giới
-# TODO Tìm hiểu xem đoạn code này có nghĩa là gì ?
 with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
     reader = csv.reader(csvfile, delimiter=',')
     for x, row in enumerate(reader):
@@ -630,8 +1047,11 @@ while run:
         # Vẽ menu
         screen.fill(BG)
         # Thêm các nút bấm
-        start_button.draw(screen)
-        exit_button.draw(screen)
+        if start_button.draw(screen):
+            start_game = True
+            start_intro = True
+        if exit_button.draw(screen):
+            run = False
     else:
         # Cập nhật background
         draw_bg()
@@ -674,6 +1094,12 @@ while run:
         water_group.draw(screen)
         exit_group.draw(screen)
 
+        # Hiện lên intro
+        if start_intro == True:
+            if intro_fade.fade():
+                start_intro = False
+                intro_fade.fade_counter = 0
+
         # Cập nhật trạng thái chạy/idle của player dựa vào phím di chuyển
         if player.alive:
             # Bắn đạn
@@ -694,11 +1120,43 @@ while run:
                 player.update_action(1)  # chạy
             else:
                 player.update_action(0)  # idle
-            screen_scroll = player.move(moving_left, moving_right)
+            screen_scroll, level_complete = player.move(moving_left, moving_right)
             bg_scroll -= screen_scroll
+            # Kiểm tra xem người chơi đã hoàn thành level hay chưa
+            if level_complete:
+                start_intro = True
+                level += 1
+                bg_scroll = 0
+                world_data = reset_level()
+                if level <= MAX_LEVELS:
+                    # Load dữ liệu của level và tạo thế giới
+                    with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
+                        reader = csv.reader(csvfile, delimiter=',')
+                        for x, row in enumerate(reader):
+                            for y, tile in enumerate(row):
+                                world_data[x][y] = int(tile)
+
+                    world = World()
+                    player , health_bar, mana_bar =  world.process_data(world_data)
 
 
+        else:
+            screen_scroll = 0
+            if death_fade.fade():
+                if restart_button.draw(screen):
+                    death_fade.fade_counter = 0
+                    start_intro = True
+                    bg_scroll = 0
+                    world_data = reset_level()
+                    # Load dữ liệu của level và tạo thế giới
+                    with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
+                        reader = csv.reader(csvfile, delimiter=',')
+                        for x, row in enumerate(reader):
+                            for y, tile in enumerate(row):
+                                world_data[x][y] = int(tile)
 
+                    world = World()
+                    player , health_bar, mana_bar =  world.process_data(world_data)
 
     # Xử lý các sự kiện bàn phím
     for event in pygame.event.get():
@@ -715,8 +1173,10 @@ while run:
                 shoot = True
             if event.key == pygame.K_q:
                 grenade = True
+                spell_cast_fx.play()
             if event.key == pygame.K_w and player.alive:
                 player.jump = True
+                jump_fx.play()
             if event.key == pygame.K_ESCAPE:
                 run = False
 
