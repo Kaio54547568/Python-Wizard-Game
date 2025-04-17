@@ -21,8 +21,7 @@ pygame.display.set_caption('Trình tạo level')
 ROWS = 16
 MAX_COLS = 150
 TILE_SIZE = (SCREEN_HEIGHT + 5 ) // ROWS
-# TODO: Chỉnh lại TILE_TYPES dựa vào game
-TILE_TYPES = 23
+TILE_TYPES = 26
 level = 0
 current_tile = 0
 scroll_left = False
