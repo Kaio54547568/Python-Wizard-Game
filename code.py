@@ -40,7 +40,7 @@ start_intro = False
 scale = 2
 speed = 5
 base_player_ammo = 25
-max_ammo = 60
+max_ammo = 80
 
 # Các biến điều khiển di chuyển của nhân vật
 moving_left = False
@@ -1161,7 +1161,7 @@ while run:
                 player.update_action(4)
                 player.shoot()
             # Ném lựu đạn
-            elif grenade and grenade_thrown == False and player.grenade > 0:
+            elif grenade and not grenade_thrown and player.ammo >= 3:
                 grenade = Grenade(player.rect.centerx + (0.5* player.rect.size[0] * player.direction),\
                                 player.rect.top, player.direction)
                 grenade_group.add(grenade)
