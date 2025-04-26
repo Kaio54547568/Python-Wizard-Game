@@ -8,6 +8,8 @@ import button
 mixer.init()
 pygame.init()
 
+# TODO: Thêm kẻ địch cận chiến
+# TODO: người chơi tấn công cận chiến
 # TODO: Thêm shop giữa các màn chơi
 # TODO: Thay đổi background theo level
 # TODO: Thay đổi nhạc theo level
@@ -41,6 +43,9 @@ scale = 2
 speed = 5
 base_player_ammo = 25
 max_ammo = 80
+saved_health = None
+saved_mana = None
+saved_coin = None
 
 # Các biến điều khiển di chuyển của nhân vật
 moving_left = False
@@ -161,6 +166,7 @@ def reset_level():
     decoration_group.empty()
     water_group.empty()
     exit_group.empty()
+    ladder_group.empty()
 
     # Lưu lại các chỉ số của người chơi
     player_stats = {
@@ -195,6 +201,7 @@ class unit(pygame.sprite.Sprite):
         self.vel_y = 0
         self.jump = False
         self.in_air = True
+        self.on_ladder = False
         self.flip = False
         self.animation_list = []
         self.frame_index = 0
@@ -228,6 +235,10 @@ class unit(pygame.sprite.Sprite):
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
 
+        keys = pygame.key.get_pressed()
+        self.move_up = keys[pygame.K_w]
+        self.move_down = keys[pygame.K_s]
+
 
     def move(self, moving_left, moving_right):
         # Reset lại các biến di chuyển
@@ -244,27 +255,37 @@ class unit(pygame.sprite.Sprite):
             self.flip = False
             self.direction = -1
 
+
         # Nhảy
         if self.jump == True and self.in_air == False:
             self.vel_y = -12
             self.jump = False
             self.in_air = True
 
-        # Áp dụng trọng lực
-        self.vel_y += GRAVITY
-        if self.vel_y > 10:
-            self.vel_y = 10
-        dy += self.vel_y
+        # Leo thang
+        if pygame.sprite.spritecollideany(self, ladder_group):
+            self.on_ladder = True
+        else:
+            self.on_ladder = False
+
+        if self.on_ladder:
+            self.vel_y = 0
+            if self.move_up:
+                dy -= 5
+            if self.move_down:
+                dy += 5
+        else:
+            # Áp dụng trọng lực
+            self.vel_y += GRAVITY
+            if self.vel_y > 10:
+                self.vel_y = 10
+            dy += self.vel_y
 
         # Kiểm tra collision
         for tile in world.obstacle_list:
             # Kiểm tra collision ở tọa độ x
             if tile[1].colliderect(self.rect.x + dx, self.rect.y + 2, self.width, self.height - 4):
                 dx = 0
-                # Nếu con ai gặp tường, nó sẽ quay lại
-                if self.char_type == 'enemy':
-                    self.direction *= -1
-                    self.move_counter = 0
             # Kiểm tra collision ở tọa độ y
             if tile[1].colliderect(self.rect.x, self.rect.y + dy, self.width, self.height):
                 # Kiểm tra xem tọa độ có ở dưới vật (chẳng hạn khi nhảy đập đầu vào tường), chẳng hạn nhảy do khi nhảy thì y giảm
@@ -634,7 +655,7 @@ class EnemyPeashooter(pygame.sprite.Sprite):
 
     def shoot(self):
         if self.shoot_cooldown == 0:
-            self.shoot_cooldown = 65
+            self.shoot_cooldown = 80
             bullet = EnemyBullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction, 'pea_bullet')
             bullet_group.add(bullet)
 
@@ -686,6 +707,7 @@ class World():
 
     def process_data(self, data, player_stats = None):
         self.level_length = len(data[0])
+        global player, current_level, saved_health, saved_mana, saved_coin
         # Khởi tạo biến player để lưu trữ chỉ số của người chơi qua từng màn
         player = None
         # Lặp qua từng giá trị trong file level
@@ -704,6 +726,10 @@ class World():
                     elif tile >= 9 and tile <= 10:
                         water = Water(img, x * TILE_SIZE, y * TILE_SIZE)
                         water_group.add(water)
+                    # Các thang
+                    elif tile >= 15 and tile <= 17:
+                        ladder = Ladder(x * TILE_SIZE, y*TILE_SIZE, tile)
+                        ladder_group.add(ladder)
                     # Khối trang trí
                     elif (tile >= 11 and tile <= 13) or (tile >= 18 and tile <= 21):
                         decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
@@ -711,10 +737,13 @@ class World():
                     # Người chơi
                     elif tile == 7:
                         # Nếu có player_stats, sử dụng các chỉ số đã lưu, nếu không thì dùng giá trị mặc định
-                        if player_stats:
-                            player = unit('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, player_stats['ammo'])
-                            player.health = player_stats['health']
-                            player.coin = player_stats['coin']
+                        global saved_health, saved_mana, saved_coin 
+                        if saved_health is not None:
+                            player = unit('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, saved_mana)
+                            player.health = saved_health
+                            player.coin = saved_coin
+                            health_bar = HealthBar(100, 10, player.health, player.max_health)
+                            mana_bar = ManaBar(82, 35, player.ammo, player.max_ammo )
                         else:
                             player = unit('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, base_player_ammo)
                             health_bar = HealthBar(100, 10, player.health, player.health)
@@ -746,11 +775,11 @@ class World():
                     # Thêm kẻ địch peashooter
                     # Hướng mặt sang trái
                     elif tile == 24:
-                        enemy = EnemyPeashooter('enemy', x * TILE_SIZE, y * TILE_SIZE, 2, -1)
+                        enemy = EnemyPeashooter('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.5, -1)
                         enemy_group.add(enemy)
                     # Hướng mặt sang phải
                     elif tile == 25:
-                        enemy = EnemyPeashooter('enemy', x * TILE_SIZE, y * TILE_SIZE, 2, 1)
+                        enemy = EnemyPeashooter('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.5, 1)
                         enemy_group.add(enemy)
         return player, health_bar, mana_bar
     # Hiển thị các tiles
@@ -759,6 +788,15 @@ class World():
             tile[1][0] += screen_scroll
             screen.blit(tile[0], tile[1])
                     
+# Tạo class Ladder
+class Ladder (pygame.sprite.Sprite):
+    def __init__(self, x, y, type):
+        super().__init__()
+        self.image = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/tiles/level_1/{type}.png')
+        self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
+        self.rect = self.image.get_rect(topleft=(x,y))
+    def update(self):
+        self.rect.x += screen_scroll
 
 # Tạo class đồ trang trí
 class Decoration(pygame.sprite.Sprite):
@@ -770,6 +808,7 @@ class Decoration(pygame.sprite.Sprite):
 
     def update (self):
         self.rect.x += screen_scroll
+    
 
 # Tạo class nước
 class Water(pygame.sprite.Sprite):
@@ -1067,6 +1106,7 @@ item_box_group = pygame.sprite.Group()
 decoration_group = pygame.sprite.Group()
 water_group = pygame.sprite.Group()
 exit_group = pygame.sprite.Group()
+ladder_group = pygame.sprite.Group()
 
 
 
@@ -1120,10 +1160,14 @@ while run:
         mana_bar.draw(player.ammo)
         # Hiển thị coins
         draw_text(f'COINS: ', font, BLACK, 10, 60)
-        draw_text(f'{player.coin}', font, YELLOW, 100, 62)
-        screen.blit(coin_img, (110, 46))
+        draw_text(f'{player.coin}', font, YELLOW, 95, 62)
+        screen.blit(coin_img, (115, 46))
 
-        
+        # Các vật cập nhật trước player
+        ladder_group.update()
+        ladder_group.draw(screen)
+        decoration_group.update()
+        decoration_group.draw(screen)
         # Cập nhật và vẽ nhân vật cũng như enemy
         player.update()
         player.draw()
@@ -1131,22 +1175,21 @@ while run:
             enemy.ai()
             enemy.update()
             enemy.draw()
-
+        
         # Cập nhật và vẽ groups
         bullet_group.update()
         grenade_group.update()
         explosion_group.update()
         item_box_group.update()
-        decoration_group.update()
         water_group.update()
         exit_group.update()
         bullet_group.draw(screen)
         grenade_group.draw(screen)
         explosion_group.draw(screen)
         item_box_group.draw(screen)
-        decoration_group.draw(screen)
         water_group.draw(screen)
         exit_group.draw(screen)
+
 
         # Hiện lên intro
         if start_intro == True:
@@ -1183,6 +1226,9 @@ while run:
                 bg_scroll = 0
                 world_data , player_stats = reset_level()
                 if level <= MAX_LEVELS:
+                    saved_health = player.health
+                    saved_mana = player.ammo
+                    saved_coin = player.coin
                     # Load dữ liệu của level và tạo thế giới
                     with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
                         reader = csv.reader(csvfile, delimiter=',')
@@ -1202,6 +1248,8 @@ while run:
                     start_intro = True
                     bg_scroll = 0
                     world_data, _ = reset_level()
+                    level = 1
+                    saved_health = None
                     # Load dữ liệu của level và tạo thế giới
                     with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
                         reader = csv.reader(csvfile, delimiter=',')
@@ -1233,7 +1281,6 @@ while run:
                 jump_fx.play()
             if event.key == pygame.K_ESCAPE:
                 run = False
-
         # Khi thả phím ra
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_a:
