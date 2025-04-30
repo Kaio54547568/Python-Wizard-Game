@@ -29,6 +29,7 @@ scroll_right = False
 scroll = 0
 scroll_speed = 1
 
+
 # Load các ảnh
 pine1_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/0.png').convert_alpha()
 pine2_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/1.png').convert_alpha()

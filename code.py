@@ -4,15 +4,12 @@ import os
 import random
 import csv
 import button
+import math
 
 mixer.init()
 pygame.init()
 
-# TODO: Thêm kẻ địch cận chiến
-# TODO: người chơi tấn công cận chiến
-# TODO: Thêm shop giữa các màn chơi
-# TODO: Thay đổi background theo level
-# TODO: Thay đổi nhạc theo level
+# TODO: Thêm Hust
 
 # Kích thước màn hình
 SCREEN_WIDTH = 1500
@@ -30,19 +27,21 @@ ROWS = 16
 COLS = 150
 TILE_SIZE = (SCREEN_HEIGHT ) // ROWS
 TILE_TYPES = 26
-MAX_LEVELS = 5
+MAX_LEVELS = 3
 screen_scroll = 0
 bg_scroll = 0
 level = 1
 start_game = False
 start_intro = False
+bg_layers = []
+playing_bg_music = False
 
 
 # Biến của nhân vật
 scale = 2
 speed = 5
-base_player_ammo = 25
-max_ammo = 80
+base_player_mana = 25
+max_mana = 80
 saved_health = None
 saved_mana = None
 saved_coin = None
@@ -51,8 +50,8 @@ saved_coin = None
 moving_left = False
 moving_right = False
 shoot = False
-grenade = False
-grenade_thrown = False
+spell = False
+spell_thrown = False
 
 # Load âm thanh
 # Các music:
@@ -60,10 +59,15 @@ grenade_thrown = False
 menu_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/menu.mp3')
 menu_fx.set_volume(0.5)
 menu_fx.play()
-# Nhạc level:
-# Level 1:
-level_1_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/level_1_ost.mp3')
-level_1_fx.set_volume(0.2)
+# Hàm chơi hạc level:
+def play_bg_music(level):
+    global playing_bg_music
+    if not playing_bg_music:
+        pygame.mixer.music.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/level_{level}_ost.mp3')
+        pygame.mixer.music.set_volume(0.2)
+        pygame.mixer.music.play(-1)     # lặp vô hạn
+        playing_bg_music = True
+
 # Các sound fx
 jump_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/jump.wav')
 jump_fx.set_volume(0.5)
@@ -79,19 +83,16 @@ coin_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-
 coin_fx.set_volume(0.5)
 
 # Load các ảnh
-# Background
-pine1_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/0.png').convert_alpha()
-pine2_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/1.png').convert_alpha()
-pine3_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/2.png').convert_alpha()
-pine4_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/3.png').convert_alpha()
-pine5_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/4.png').convert_alpha()
-pine6_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_1/5.png').convert_alpha()
-pine1_img = pygame.transform.scale(pine1_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
-pine2_img = pygame.transform.scale(pine2_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
-pine3_img = pygame.transform.scale(pine3_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
-pine4_img = pygame.transform.scale(pine4_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
-pine5_img = pygame.transform.scale(pine5_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
-pine6_img = pygame.transform.scale(pine6_img, (SCREEN_WIDTH, SCREEN_HEIGHT))
+# Fuction để vẽ background
+def load_bg(level):
+    folder = f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_{level}'
+    bg_images = []
+    for filename in sorted(os.listdir(folder)):
+        img = pygame.image.load(os.path.join(folder, filename))
+        img = pygame.transform.scale(img, (SCREEN_WIDTH, SCREEN_HEIGHT)).convert_alpha()
+        bg_images.append(img)
+    return bg_images
+
 
 # ảnh buttons
 start_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/menu_button/newgame.png').convert_alpha()
@@ -108,19 +109,20 @@ for x in range(TILE_TYPES):
 # Load ảnh của viên đạn (chuyển sang alpha để có nền trong suốt)
 bullet_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/p_bullet.png').convert_alpha()
 
-# Load ảnh của grenade
-grenade_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/grenade.png').convert_alpha()
+# Load ảnh của spell
+spell_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/spell.png').convert_alpha()
 # Load ảnh của pick up
 health_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/health_box.png').convert_alpha()
-ammo_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/ammo_box.png').convert_alpha()
-grenade_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/grenade_box.png').convert_alpha()
+mana_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/mana_box.png').convert_alpha()
+spell_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/spell_box.png').convert_alpha()
 coin_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/coin.png').convert_alpha()
 coin_img = pygame.transform.scale(coin_img, (TILE_SIZE, TILE_SIZE))
 
+
 item_boxes = {
     'Health'    : health_box_img,
-    'Ammo'      : ammo_box_img,
-    'Grenade'   : grenade_box_img,
+    'Mana'      : mana_box_img,
+    'Spell'   : spell_box_img,
     'Coin'      : coin_img
 }
 
@@ -146,21 +148,29 @@ def draw_text(text, font, text_col, x, y):
 
 # Hàm để vẽ background
 def draw_bg():
-    screen.fill(GREEN)
-    width = pine1_img.get_width()
-    for x in range(5):
-        screen.blit(pine1_img, ((x * width) - bg_scroll * 0.3, 0))
-        screen.blit(pine2_img, ((x * width) - bg_scroll * 0.4, 0))
-        screen.blit(pine3_img, ((x * width) - bg_scroll * 0.5, 0))
-        screen.blit(pine4_img, ((x * width) - bg_scroll * 0.6, 0))
-        screen.blit(pine5_img, ((x * width) - bg_scroll * 0.7, 0))
-        screen.blit(pine6_img, ((x * width) - bg_scroll * 0.8, 0))
+    # Không cần fill(GREEN) nữa, dùng màu nền sẫm hơn tuỳ ý
+    width = bg_layers[0].get_width()
+
+    depth_factors = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    for idx, layer in enumerate(bg_layers):
+        factor = depth_factors[idx] if idx < len(depth_factors) else depth_factors[-1]
+
+        # 1) Tính vị trí gốc và đưa về âm nếu cần
+        x = -(bg_scroll * factor) % width
+        if x > 0:
+            x -= width          # đảm bảo tấm đầu phủ cả mép trái
+
+        # 2) Vẽ liên tiếp cho đến khi vượt quá SCREEN_WIDTH
+        while x < SCREEN_WIDTH:
+            screen.blit(layer, (int(x), 0))
+            x += width
+
 
 # Hàm để reset level
 def reset_level():
     enemy_group.empty()
     bullet_group.empty()
-    grenade_group.empty()
+    spell_group.empty()
     explosion_group.empty()
     item_box_group.empty()
     decoration_group.empty()
@@ -171,7 +181,7 @@ def reset_level():
     # Lưu lại các chỉ số của người chơi
     player_stats = {
         'health' : player.health,
-        'ammo' : player.ammo,
+        'mana' : player.mana,
         'coin' : player.coin
     }
 
@@ -183,16 +193,16 @@ def reset_level():
 
     return data, player_stats
 
-# Lớp unit: đại diện cho các nhân vật người chơi
-class unit(pygame.sprite.Sprite):
-    def __init__(self, char_type, x, y, scale, speed, ammo):
+# Lớp Player: đại diện cho các nhân vật người chơi
+class Player(pygame.sprite.Sprite):
+    def __init__(self, char_type, x, y, scale, speed, mana):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
         self.char_type = char_type
         self.speed = speed
-        self.ammo = ammo
-        self.max_ammo = max_ammo
-        self.start_ammo = ammo
+        self.mana = mana
+        self.max_mana = max_mana
+        self.start_mana = mana
         self.shoot_cooldown = 0
         self.coin = 0
         self.health = 100
@@ -331,12 +341,12 @@ class unit(pygame.sprite.Sprite):
     
 
     def shoot(self):
-        if self.shoot_cooldown == 0 and self.ammo > 0:
+        if self.shoot_cooldown == 0 and self.mana > 0:
             self.shoot_cooldown = 30
             bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction)
             bullet_group.add(bullet)
             # Giảm số lượng đạn
-            self.ammo -= 1
+            self.mana -= 1
             p_attack_fx.play()
 
 
@@ -552,6 +562,7 @@ class EnemyTrunk(pygame.sprite.Sprite):
     def draw(self):
         screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
 
+
 # Tạo class kẻ địch - Peashooter:
 class EnemyPeashooter(pygame.sprite.Sprite):
     def __init__(self, char_type, x, y, scale, direction):
@@ -559,7 +570,7 @@ class EnemyPeashooter(pygame.sprite.Sprite):
         self.alive = True
         self.char_type = char_type
         self.shoot_cooldown = 0
-        self.health = 125
+        self.health = 100
         self.direction = direction  # Ban đầu hướng phải (1) hoặc trái (-1)
         self.vel_y = 0
         self.flip = False
@@ -700,6 +711,7 @@ class EnemyPeashooter(pygame.sprite.Sprite):
 
     def draw(self):
         screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
+
 # Tạo class thế giới
 class World():
     def __init__(self):
@@ -739,26 +751,26 @@ class World():
                         # Nếu có player_stats, sử dụng các chỉ số đã lưu, nếu không thì dùng giá trị mặc định
                         global saved_health, saved_mana, saved_coin 
                         if saved_health is not None:
-                            player = unit('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, saved_mana)
+                            player = Player('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, saved_mana)
                             player.health = saved_health
                             player.coin = saved_coin
                             health_bar = HealthBar(100, 10, player.health, player.max_health)
-                            mana_bar = ManaBar(82, 35, player.ammo, player.max_ammo )
+                            mana_bar = ManaBar(82, 35, player.mana, player.max_mana )
                         else:
-                            player = unit('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, base_player_ammo)
+                            player = Player('player', x * TILE_SIZE, y * TILE_SIZE, scale, speed, base_player_mana)
                             health_bar = HealthBar(100, 10, player.health, player.health)
-                            mana_bar = ManaBar(82, 35, player.ammo, player.max_ammo )
+                            mana_bar = ManaBar(82, 35, player.mana, player.max_mana )
                     # Kẻ địch Trunk
                     elif tile == 8:
                         enemy = EnemyTrunk('enemy', x * TILE_SIZE, y * TILE_SIZE, 2, 0.5 * speed)
                         enemy_group.add(enemy)
                     # Tạo hộp đạn
                     elif tile == 4:
-                        item_box = ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box = ItemBox('Mana', x * TILE_SIZE, y * TILE_SIZE)
                         item_box_group.add(item_box)
                     # Tạo hộp spells
                     elif tile == 5:
-                        item_box = ItemBox('Grenade', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box = ItemBox('Spell', x * TILE_SIZE, y * TILE_SIZE)
                         item_box_group.add(item_box)
                     # Tạo hộp máu
                     elif tile == 6:
@@ -848,12 +860,12 @@ class ItemBox(pygame.sprite.Sprite):
                 player.health += 40
                 if (player.health > player.max_health):
                     player.health = player.max_health
-            elif self.item_type == 'Ammo':
-                player.ammo += 12
-                if (player.ammo > player.max_ammo):
-                    player.ammo = player.max_ammo
-            elif self.item_type == 'Grenade':
-                player.ammo += 20
+            elif self.item_type == 'Mana':
+                player.mana += 12
+                if (player.mana > player.max_mana):
+                    player.mana = player.max_mana
+            elif self.item_type == 'Spell':
+                player.mana += 20
             elif self.item_type == 'Coin':
                 player.coin += 1
                 coin_fx.play()
@@ -963,22 +975,22 @@ class EnemyBullet(pygame.sprite.Sprite):
         if self.bullet_type == 'pea_bullet':
             if pygame.sprite.spritecollide(player, bullet_group, False):
                 if player.alive:
-                    player.health -= 35
+                    player.health -= 25
                     p_hit_fx.play()
                 self.kill()
             for enemy in enemy_group:
                 if pygame.sprite.spritecollide(enemy, bullet_group, False):
                     if enemy.alive:
-                        enemy.health -= 35
+                        enemy.health -= 30
                         self.kill()
 
-# Tạo class grenade
-class Grenade(pygame.sprite.Sprite):
+# Tạo class spell
+class Spell(pygame.sprite.Sprite):
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
         self.vel_y = -11
         self.speed = 7
-        self.image = grenade_img
+        self.image = spell_img
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.width = self.image.get_width()
@@ -1029,7 +1041,7 @@ class Grenade(pygame.sprite.Sprite):
                     self.rect.y += dy
                     self.rect.y = int(self.rect.y)
 
-        # Cập nhật vị trí grenade
+        # Cập nhật vị trí spell
         self.rect.x += dx + screen_scroll
         self.rect.y += dy
 
@@ -1100,7 +1112,7 @@ restart_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 100
 # Tạo sprite group
 enemy_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
-grenade_group = pygame.sprite.Group()
+spell_group = pygame.sprite.Group()
 explosion_group = pygame.sprite.Group()
 item_box_group = pygame.sprite.Group()
 decoration_group = pygame.sprite.Group()
@@ -1127,6 +1139,9 @@ with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/lev
 world = World()
 player , health_bar, mana_bar =  world.process_data(world_data)
 
+# Vẽ sẵn level 1
+bg_layers = load_bg(level)
+
 run = True
 while run:
     # FPS của con game
@@ -1141,11 +1156,11 @@ while run:
             start_game = True
             start_intro = True
             menu_fx.stop()
+            play_bg_music(level)
         if exit_button.draw(screen):
             run = False
     else:
-        if not level_1_fx.get_num_channels() > 0:  # Kiểm tra nếu nhạc chưa phát
-            level_1_fx.play(-1)
+        play_bg_music(level)
         # Cập nhật background
         draw_bg()
         # Vẽ bản đồ game
@@ -1155,9 +1170,9 @@ while run:
         draw_text(f'HEALTH: ', font, BLACK, 10, 10)
         # Hiển thị mana
         
-        # Hiển thị ammo
+        # Hiển thị mana
         draw_text(f'MANA: ', font, BLACK, 10, 35)
-        mana_bar.draw(player.ammo)
+        mana_bar.draw(player.mana)
         # Hiển thị coins
         draw_text(f'COINS: ', font, BLACK, 10, 60)
         draw_text(f'{player.coin}', font, YELLOW, 95, 62)
@@ -1178,13 +1193,13 @@ while run:
         
         # Cập nhật và vẽ groups
         bullet_group.update()
-        grenade_group.update()
+        spell_group.update()
         explosion_group.update()
         item_box_group.update()
         water_group.update()
         exit_group.update()
         bullet_group.draw(screen)
-        grenade_group.draw(screen)
+        spell_group.draw(screen)
         explosion_group.draw(screen)
         item_box_group.draw(screen)
         water_group.draw(screen)
@@ -1204,13 +1219,13 @@ while run:
                 player.update_action(4)
                 player.shoot()
             # Ném lựu đạn
-            elif grenade and not grenade_thrown and player.ammo >= 3:
-                grenade = Grenade(player.rect.centerx + (0.5* player.rect.size[0] * player.direction),\
+            elif spell and not spell_thrown and player.mana >= 3:
+                spell = Spell(player.rect.centerx + (0.5* player.rect.size[0] * player.direction),\
                                 player.rect.top, player.direction)
-                grenade_group.add(grenade)
-                # Giảm số grenade lại
-                player.ammo -= 3
-                grenade_thrown = True
+                spell_group.add(spell)
+                # Giảm số spell lại
+                player.mana -= 3
+                spell_thrown = True
             elif player.in_air:
                 player.update_action(2)  # nhảy
             elif moving_left or moving_right:
@@ -1221,13 +1236,18 @@ while run:
             bg_scroll -= screen_scroll
             # Kiểm tra xem người chơi đã hoàn thành level hay chưa
             if level_complete:
+                if (level == 4):
+                    pygame.quit()
+                pygame.mixer.music.fadeout(1000)
+                playing_bg_music = False
                 start_intro = True
                 level += 1
                 bg_scroll = 0
+                bg_layers = load_bg(level)
                 world_data , player_stats = reset_level()
                 if level <= MAX_LEVELS:
                     saved_health = player.health
-                    saved_mana = player.ammo
+                    saved_mana = player.mana
                     saved_coin = player.coin
                     # Load dữ liệu của level và tạo thế giới
                     with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
@@ -1274,7 +1294,7 @@ while run:
             if event.key == pygame.K_SPACE:
                 shoot = True
             if event.key == pygame.K_q:
-                grenade = True
+                spell = True
                 spell_cast_fx.play()
             if event.key == pygame.K_w and player.alive:
                 player.jump = True
@@ -1290,8 +1310,8 @@ while run:
             if event.key == pygame.K_SPACE:
                 shoot = False
             if event.key == pygame.K_q:
-                grenade = False
-                grenade_thrown = False
+                spell = False
+                spell_thrown = False
 
     pygame.display.update()
 
