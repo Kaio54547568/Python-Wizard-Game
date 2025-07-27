@@ -16,6 +16,8 @@ def R(*paths):
 
 mixer.init()
 pygame.init()
+pygame.display.set_icon(pygame.image.load(R("img", "icon.png")))
+
 
 # Kích thước màn hình
 SCREEN_WIDTH = 1500
@@ -600,9 +602,9 @@ class EnemyPeashooter(pygame.sprite.Sprite):
             # Reset lại list tạm thời của các ảnh
             temp_list = []
             # Đếm số lượng khung hình trong thư mục tương ứng
-            num_of_frames = len(os.listdir(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/peashooter/{animation}'))
+            num_of_frames = len(os.listdir(R("img", char_type, "peashooter", animation)))
             for i in range(num_of_frames):
-                img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/peashooter/{animation}/{i}.png').convert_alpha()
+                img = pygame.image.load(R("img", char_type, "peashooter", animation, f"{i}.png")).convert_alpha()
                 # Cập nhật lại hình ảnh nếu direction bằng 1
                 if direction == 1:
                     img = pygame.transform.flip(img, True, False)
@@ -1258,7 +1260,7 @@ while run:
                     saved_mana = player.mana
                     saved_coin = player.coin
                     # Load dữ liệu của level và tạo thế giới
-                    with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
+                    with open(R("level", f"level{level}_data.csv"), newline='') as csvfile:
                         reader = csv.reader(csvfile, delimiter=',')
                         for x, row in enumerate(reader):
                             for y, tile in enumerate(row):
@@ -1279,7 +1281,7 @@ while run:
                     level = 1
                     saved_health = None
                     # Load dữ liệu của level và tạo thế giới
-                    with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
+                    with open(R("level", f"level{level}_data.csv"), newline='') as csvfile:
                         reader = csv.reader(csvfile, delimiter=',')
                         for x, row in enumerate(reader):
                             for y, tile in enumerate(row):
