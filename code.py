@@ -5,11 +5,17 @@ import random
 import csv
 import button
 import math
+import sys
+
+# Đường dẫn tương đối với thư mục chứa mã nguồn
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+
+# Hàm trả về đường dẫn tuyệt đối tới resources trong project
+def R(*paths):
+    return os.path.join(BASE_DIR, *paths)
 
 mixer.init()
 pygame.init()
-
-# TODO: Thêm Hust
 
 # Kích thước màn hình
 SCREEN_WIDTH = 1500
@@ -56,36 +62,36 @@ spell_thrown = False
 # Load âm thanh
 # Các music:
 # Nhạc menu
-menu_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/menu.mp3')
+menu_fx = pygame.mixer.Sound(R("sounds", "menu.mp3"))
 menu_fx.set_volume(0.5)
 menu_fx.play()
-# Hàm chơi hạc level:
+# Hàm chơi nhạc level:
 def play_bg_music(level):
     global playing_bg_music
     if not playing_bg_music:
-        pygame.mixer.music.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/level_{level}_ost.mp3')
+        pygame.mixer.music.load(R("sounds", f"level_{level}_ost.mp3"))
         pygame.mixer.music.set_volume(0.2)
         pygame.mixer.music.play(-1)     # lặp vô hạn
         playing_bg_music = True
 
 # Các sound fx
-jump_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/jump.wav')
+jump_fx = pygame.mixer.Sound(R("sounds", "jump.wav"))
 jump_fx.set_volume(0.5)
-p_attack_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/p_attack.wav')
+p_attack_fx = pygame.mixer.Sound(R("sounds", "p_attack.wav"))
 p_attack_fx.set_volume(0.2)
-p_hit_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/p_hit.wav')
+p_hit_fx = pygame.mixer.Sound(R("sounds", "p_hit.wav"))
 p_hit_fx.set_volume(0.8)
-spell_cast_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/spell_cast.wav')
+spell_cast_fx = pygame.mixer.Sound(R("sounds", "spell_cast.wav"))
 spell_cast_fx.set_volume(0.5)
-spell_explode_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/spell_explode.mp3')
+spell_explode_fx = pygame.mixer.Sound(R("sounds", "spell_explode.mp3"))
 spell_explode_fx.set_volume(0.5)
-coin_fx = pygame.mixer.Sound('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/sounds/pennypickup.mp3')
+coin_fx = pygame.mixer.Sound(R("sounds", "pennypickup.mp3"))
 coin_fx.set_volume(0.5)
 
 # Load các ảnh
 # Fuction để vẽ background
 def load_bg(level):
-    folder = f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/back_ground/level_{level}'
+    folder = R("img", "back_ground", f"level_{level}")
     bg_images = []
     for filename in sorted(os.listdir(folder)):
         img = pygame.image.load(os.path.join(folder, filename))
@@ -95,27 +101,29 @@ def load_bg(level):
 
 
 # ảnh buttons
-start_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/menu_button/newgame.png').convert_alpha()
-exit_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/menu_button/exit.png').convert_alpha()
-restart_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/menu_button/restart.png').convert_alpha()
+start_img   = pygame.image.load(R("img", "menu_button", "newgame.png")).convert_alpha()
+exit_img    = pygame.image.load(R("img", "menu_button", "exit.png")).convert_alpha()
+restart_img = pygame.image.load(R("img", "menu_button", "restart.png")).convert_alpha()
 
 
 # Lưu trữ các tiles vào 1 list
 img_list = []
 for x in range(TILE_TYPES):
-    img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/tiles/level_1/{x}.png').convert_alpha()
+    img = pygame.image.load(R("img", "tiles", "level_1", f"{x}.png")).convert_alpha()
     img = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
     img_list.append(img)
+
 # Load ảnh của viên đạn (chuyển sang alpha để có nền trong suốt)
-bullet_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/p_bullet.png').convert_alpha()
+bullet_img = pygame.image.load(R("img", "bullets", "p_bullet.png")).convert_alpha()
 
 # Load ảnh của spell
-spell_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/spell.png').convert_alpha()
+spell_img  = pygame.image.load(R("img", "bullets", "spell.png")).convert_alpha()
+
 # Load ảnh của pick up
-health_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/health_box.png').convert_alpha()
-mana_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/mana_box.png').convert_alpha()
-spell_box_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/spell_box.png').convert_alpha()
-coin_img = pygame.image.load('C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/pick_up/coin.png').convert_alpha()
+health_box_img = pygame.image.load(R("img", "pick_up", "health_box.png")).convert_alpha()
+mana_box_img = pygame.image.load(R("img", "pick_up", "mana_box.png")).convert_alpha()
+spell_box_img = pygame.image.load(R("img", "pick_up", "spell_box.png")).convert_alpha()
+coin_img = pygame.image.load(R("img", "pick_up", "coin.png")).convert_alpha()
 coin_img = pygame.transform.scale(coin_img, (TILE_SIZE, TILE_SIZE))
 
 
@@ -225,9 +233,9 @@ class Player(pygame.sprite.Sprite):
             # Reset lại list tạm thời của các ảnh
             temp_list = []
             # Đếm số lượng khung hình trong thư mục tương ứng
-            num_of_frames = len(os.listdir(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/{animation}'))
+            num_of_frames = len(os.listdir(R("img", char_type, animation)))
             for i in range(num_of_frames):
-                img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/{animation}/{i}.png').convert_alpha()
+                img = pygame.image.load(R("img", char_type, animation, f"{i}.png")).convert_alpha()
                 img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
                 temp_list.append(img)
             self.animation_list.append(temp_list)
@@ -405,9 +413,9 @@ class EnemyTrunk(pygame.sprite.Sprite):
             # Reset lại list tạm thời của các ảnh
             temp_list = []
             # Đếm số lượng khung hình trong thư mục tương ứng
-            num_of_frames = len(os.listdir(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/trunk/{animation}'))
+            num_of_frames = len(os.listdir(R("img", char_type, "trunk", animation)))
             for i in range(num_of_frames):
-                img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/{self.char_type}/trunk/{animation}/{i}.png').convert_alpha()
+                img = pygame.image.load(R("img", char_type, "trunk", animation, f"{i}.png")).convert_alpha()
                 img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
                 temp_list.append(img)
             self.animation_list.append(temp_list)
@@ -804,7 +812,7 @@ class World():
 class Ladder (pygame.sprite.Sprite):
     def __init__(self, x, y, type):
         super().__init__()
-        self.image = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/tiles/level_1/{type}.png')
+        self.image = pygame.image.load(R("img","tiles","level_1",f"{type}.png")).convert_alpha()
         self.image = pygame.transform.scale(self.image, (TILE_SIZE, TILE_SIZE))
         self.rect = self.image.get_rect(topleft=(x,y))
     def update(self):
@@ -942,7 +950,7 @@ class EnemyBullet(pygame.sprite.Sprite):
         self.speed = 5
         self.direction = direction
         self.bullet_type = bullet_type
-        bullet_img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/{bullet_type}.png').convert_alpha()
+        bullet_img = pygame.image.load(R("img", "bullets", f"{bullet_type}.png")).convert_alpha()
         bullet_img = pygame.transform.scale(bullet_img, (32, 32))
         self.image = bullet_img
         self.rect = self.image.get_rect()
@@ -1051,7 +1059,7 @@ class Explosion(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         self.images = []
         for num in range(0, 8):
-            img = pygame.image.load(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/img/bullets/Spells_1/{num}.png').convert_alpha()
+            img = pygame.image.load(R("img", "bullets", "Spells_1", f"{num}.png")).convert_alpha()
             img = pygame.transform.scale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
             self.images.append(img)
         self.frame_index = 0
@@ -1130,7 +1138,7 @@ for row in range(ROWS):
     world_data.append(r)
 
 # Load dữ liệu của level và tạo thế giới
-with open(f'C:/Users/ADMIN/Desktop/CODES/Python-Shooting-Game-Original/level/level{level}_data.csv', newline='') as csvfile:
+with open(R("level", f"level{level}_data.csv"), newline='') as csvfile:
     reader = csv.reader(csvfile, delimiter=',')
     for x, row in enumerate(reader):
         for y, tile in enumerate(row):
