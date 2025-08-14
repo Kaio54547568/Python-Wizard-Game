@@ -1,5 +1,8 @@
 # Python Shooting Game Original
 ### Made by : Kaio
+
+Game download link: https://drive.google.com/file/d/1Zkk_KSYsGBGhUU8_ZlgCVnhlvIxSOfmo/view?usp=sharing
+
  
 ### Cách để điều khiển:
 - Phím A: di chuyển sang trái
